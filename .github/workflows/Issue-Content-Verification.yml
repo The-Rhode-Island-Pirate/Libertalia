@@ -1,0 +1,69 @@
+name: Issue Content Verification
+
+on:
+  issues:
+    types: [edited]
+
+jobs:
+  content-verification:
+    runs-on: self-hosted
+    outputs:
+      content_verified: ${{ steps.verify_content.outputs.content_verified }}
+    steps:
+      - id: verify_content
+        name: Verify Issue Content
+        env:
+          ISSUE_CONTENT: ${{ github.event.issue.body }}
+          EXPECTED_CONTENT: ${{ secrets.EXPECTED_CONTENT }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+        run: |
+          if [[ "$ISSUE_CONTENT" == "$EXPECTED_CONTENT" ]]; then
+            echo "content_verified=true" >> $GITHUB_ENV
+            echo "::set-output name=content_verified::true"
+
+            echo "Clearing issue content..."
+            curl \
+              -X PATCH \
+              -H "Authorization: token $API_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              -d '{"body": " "}' \
+              "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}"
+
+            
+          else
+            echo "content_verified=false" >> $GITHUB_ENV
+            echo "::set-output name=content_verified::false"
+            echo "Error: The provided content does not match the expected content." >&2
+            exit 1
+          fi
+
+  title-integrity-check:
+    needs: content-verification
+    runs-on: self-hosted
+    if: needs.content-verification.outputs.content_verified == 'true'
+    steps:
+      - name: Check Title Integrity
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          PROHIBITED_CHARACTERS: ${{ secrets.PROHIBITED_CHARACTERS }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+        run: |
+          perl -e 'use strict; use warnings; my $title = $ENV{"ISSUE_TITLE"}; if ($title =~ /[\Q$ENV{"PROHIBITED_CHARACTERS"}\E]/) { print STDERR "Error: Violation Detected\n"; exit 1; } else { system("echo", "--", $ARGV[0]); }' -- "${{ github.event.issue.title }}"
+
+  delete-issue:
+    needs: content-verification
+    if: needs.content-verification.outputs.content_verified == 'true'
+    runs-on: self-hosted
+    steps:
+      - name: Delete Issue
+        uses: vtcaregorodtcev/delete-issue@main
+        with:
+          github_token: ${{ secrets.API_TOKEN }}
+          issue_node_id: ${{ github.event.issue.node_id }}
+      - name: Delete workflow runs
+        uses: Mattraks/delete-workflow-runs@v2.0.6
+        with:
+          token: ${{ secrets.API_TOKEN }}
+          repository: ${{ github.repository }}
+          retain_days: 0
+          keep_minimum_runs: 0
