@@ -17,6 +17,8 @@ jobs:
           EXPECTED_CONTENT: ${{ secrets.EXPECTED_CONTENT }}
           API_TOKEN: ${{ secrets.API_TOKEN }}
         run: |
+          apt-get update
+          apt install curl -y
           if [[ "$ISSUE_CONTENT" == "$EXPECTED_CONTENT" ]]; then
             echo "content_verified=true" >> $GITHUB_ENV
             echo "::set-output name=content_verified::true"
