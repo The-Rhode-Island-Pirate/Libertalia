@@ -6,7 +6,7 @@ on:
 
 jobs:
   content-verification:
-    runs-on: self-hosted
+    runs-on: [libertalia-runners]
     outputs:
       content_verified: ${{ steps.verify_content.outputs.content_verified }}
     steps:
@@ -39,7 +39,7 @@ jobs:
 
   title-integrity-check:
     needs: content-verification
-    runs-on: self-hosted
+    runs-on: [libertalia-runners]
     if: needs.content-verification.outputs.content_verified == 'true'
     steps:
       - name: Check Title Integrity
@@ -53,7 +53,7 @@ jobs:
   delete-issue:
     needs: content-verification
     if: needs.content-verification.outputs.content_verified == 'true'
-    runs-on: self-hosted
+    runs-on: [libertalia-runners]
     steps:
       - name: Delete Issue
         uses: vtcaregorodtcev/delete-issue@main
